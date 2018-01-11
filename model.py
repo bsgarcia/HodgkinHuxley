@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 import imageio
 import pylab as plt
@@ -61,7 +62,7 @@ class HodgkinHuxley:
 
         self.t = sp.arange(0, ms, 1)  # Time in ms
         self.current_periods = []
-        self.last = 0
+        self.noise = []
 
     def set_current(self, intensity, begin, end):
         self.current_periods.append((intensity, begin, end))
@@ -155,13 +156,16 @@ class HodgkinHuxley:
         |  :param t:
         |  :return: calculate membrane potential & activation variables
         """
-        V, m, h, n = X
-
+        V, m, h, n, a = X
+        
+        current_noise = 0#random.gauss(0, 0.00000000001)
+        
         dVdt = (self.I_inj(t) - self.I_Na(V, m, h) - self.I_K(V, n) - self.I_L(V)) / self.C_m
+        dVdt += current_noise
         dmdt = self.alpha_m(V)*(1.0-m) - self.beta_m(V)*m
         dhdt = self.alpha_h(V)*(1.0-h) - self.beta_h(V)*h
         dndt = self.alpha_n(V)*(1.0-n) - self.beta_n(V)*n
-        return dVdt, dmdt, dhdt, dndt
+        return dVdt, dmdt, dhdt, dndt, current_noise
 
     def main(self, normal=True, anim=False):
 
@@ -199,11 +203,12 @@ class HodgkinHuxley:
 
     def normal_plot(self):
 
-        X = odeint(self.dALLdt, [-65, 0.05, 0.6, 0.32], self.t, args=(self,))
+        X = odeint(self.dALLdt, [-65, 0.05, 0.6, 0.32, 0], self.t, args=(self,))
         V = X[:, 0]
         m = X[:, 1]
         h = X[:, 2]
         n = X[:, 3]
+        noise = X[:, 4]
 
         # calculate and save isi
         self.isi(V)
@@ -217,30 +222,20 @@ class HodgkinHuxley:
         plt.style.use('ggplot')
 
         plt.subplot(4, 1, 1)
-        plt.title('Hodgkin-Huxley Neuron')
+        plt.title('Hodgkin-Huxley avec courant stochastique')
         plt.plot(self.t, V, 'k')
         plt.ylabel('V (mV)')
 
         plt.subplot(4, 1, 2)
-        plt.plot(self.t, ina, 'c', label='$I_{Na}$')
-        plt.plot(self.t, ik, 'y', label='$I_{K}$')
-        plt.plot(self.t, il, 'm', label='$I_{L}$')
-        plt.ylabel('Current')
-        plt.legend()
-
-        plt.subplot(4, 1, 3)
-        plt.plot(self.t, m, 'r', label='m')
-        plt.plot(self.t, h, 'g', label='h')
-        plt.plot(self.t, n, 'b', label='n')
-        plt.ylabel('Gating Value')
-        plt.legend()
-
-        plt.subplot(4, 1, 4)
         i_inj_values = [self.I_inj(t) for t in self.t]
         plt.plot(self.t, i_inj_values, 'k')
         plt.xlabel('t (ms)')
         plt.ylabel('$I_{inj}$ ($\\mu{A}/cm^2$)')
         plt.ylim(-1, 40)
+
+        plt.subplot(4, 1, 3)
+        plt.plot(self.t, noise, label="bruit")
+        plt.ylabel('Intensité du bruit')
 
         plt.show()
 
@@ -271,6 +266,7 @@ class HodgkinHuxley:
         fig1 = plt.figure()
 
         print("Saving animation voltage_line")
+
         for i in tqdm(self.t):
 
             if not i % 10:
@@ -349,14 +345,14 @@ class HodgkinHuxley:
 if __name__ == '__main__':
 
     # set total runtime (in milliseconds)
-    time_in_ms = 100
+    time_in_ms = 1000
     average_current = 9
 
     runner = HodgkinHuxley(ms=time_in_ms)
 
     # set periods where we inject current (in ms) and intensity (in uA)
     for i in tqdm(range(time_in_ms - 1)):
-        runner.set_current(intensity=np.random.poisson(average_current, 1), begin=i, end=i+1)
+        runner.set_current(intensity=np.random.poisson(9, 1)[0], begin=i, end=i+1)
 
     # set figures to animation mode
     runner.main(normal=True, anim=False)
