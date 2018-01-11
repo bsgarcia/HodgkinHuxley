@@ -9,7 +9,6 @@ import scipy as sp
 import numpy as np
 from tqdm import tqdm
 import pickle
-import test
 
 
 class TargetFormat:
